@@ -1,0 +1,41 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+target/
+!target/classes/
+!target/test-classes/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+
+# Other
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# React
+node_modules/
+build/
+*.log
+
+# Yarn
+.yarn-integrity
+.yarn-cache/

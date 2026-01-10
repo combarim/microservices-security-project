@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  order_bd:
+    image: postgres:latest
+    container_name: postgres_order_bd
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_ORDER}
+      POSTGRES_USER: ${POSTGRES_USER_ORDER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_ORDER}
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  product_bd:
+    image: postgres:latest
+    container_name: postgres_product_bd
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_PRODUCT}
+      POSTGRES_USER: ${POSTGRES_USER_PRODUCT}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT}
+    volumes:
+      - postgres_product_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  keycloak:
+    image: jboss/keycloak:latest
+    container_name: keycloak
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres_order_bd
+      DB_DATABASE: order_bd
+      DB_USER: order_user
+      DB_PASSWORD: order_password
+      KEYCLOAK_USER: ${KEYCLOAK_USER}
+      KEYCLOAK_PASSWORD: ${KEYCLOAK_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres_order_bd
+
+volumes:
+  postgres_order_data:
+  postgres_product_data:
