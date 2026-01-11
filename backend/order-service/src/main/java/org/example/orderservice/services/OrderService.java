@@ -1,6 +1,7 @@
 package org.example.orderservice.services;
 
 import lombok.RequiredArgsConstructor;
+import org.example.orderservice.dto.ProductResponse;
 import org.example.orderservice.entities.Order;
 import org.example.orderservice.entities.OrderItem;
 import org.example.orderservice.repositories.OrderRepository;
@@ -15,23 +16,54 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final WebClient.Builder webClientBuilder;
+    private final WebClient webClient;
 
     private final String productServiceUrl = "http://localhost:8082";
 
     /**
-     * Crée une commande pour un utilisateur
+     * 🔐 Appel sécurisé inter-service vers product-service
+     * Le JWT utilisateur est automatiquement propagé
+     */
+    public Integer getProductStock(Long productId) {
+
+        ProductResponse product = webClient.get()
+                .uri(productServiceUrl + "/products/{id}", productId)
+                .retrieve()
+                .bodyToMono(ProductResponse.class)
+                .block();
+
+        if (product == null) {
+            throw new RuntimeException("Produit introuvable (id=" + productId + ")");
+        }
+
+        return product.getQuantity();
+    }
+
+    /**
+     * Création d'une commande pour un utilisateur
      */
     public Order createOrder(Order order, String username) {
+
         order.setOrderDate(LocalDateTime.now());
         order.setUsername(username);
         order.setStatus("CREATED");
 
         double total = 0.0;
+
         for (OrderItem item : order.getItems()) {
-            // On pourrait appeler product-service pour vérifier stock ou prix réel
+
+            // 🔐 Vérification du stock via product-service (JWT propagé)
+            Integer stock = getProductStock(item.getProductId());
+
+            if (stock == null || stock < item.getQuantity()) {
+                throw new RuntimeException(
+                        "Stock insuffisant pour le produit " + item.getProductId()
+                );
+            }
+
             total += item.getPrice() * item.getQuantity();
         }
+
         order.setTotalAmount(total);
 
         return orderRepository.save(order);
@@ -55,11 +87,14 @@ public class OrderService {
      * Récupère une commande par id et vérifie qu'elle appartient à l'utilisateur
      */
     public Order getOrderByIdForUser(Long id, String username) {
+
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
         if (!order.getUsername().equals(username)) {
-            throw new RuntimeException("Accès refusé : cette commande n'appartient pas à l'utilisateur");
+            throw new RuntimeException(
+                    "Accès refusé : cette commande n'appartient pas à l'utilisateur"
+            );
         }
 
         return order;
