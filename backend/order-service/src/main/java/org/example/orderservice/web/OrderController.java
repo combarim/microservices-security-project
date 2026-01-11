@@ -2,12 +2,10 @@ package org.example.orderservice.web;
 
 import lombok.RequiredArgsConstructor;
 import org.example.orderservice.entities.Order;
-import org.example.orderservice.repositories.OrderRepository;
+import org.example.orderservice.services.OrderService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -16,18 +14,26 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderController {
 
-    private final OrderRepository orderRepository;
+    private final OrderService orderService;
 
     @GetMapping
     @PreAuthorize("hasRole('CLIENT')")
-    public List<Order> getAllOrders() {
-        return orderRepository.findAll();
+    public List<Order> getAllOrdersForUser(Authentication auth) {
+        String username = auth.getName();
+        return orderService.getOrdersByUser(username);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLIENT')")
+    public Order getOrderById(@PathVariable Long id, Authentication auth) {
+        String username = auth.getName();
+        return orderService.getOrderByIdForUser(id, username);
+    }
+
+    @PostMapping
     @PreAuthorize("hasRole('CLIENT')")
-    public Order getOrderById(@PathVariable Long id) {
-        return orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+    public Order createOrder(@RequestBody Order order, Authentication auth) {
+        String username = auth.getName();
+        return orderService.createOrder(order, username);
     }
 }

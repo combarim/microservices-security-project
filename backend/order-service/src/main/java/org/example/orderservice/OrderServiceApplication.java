@@ -22,50 +22,44 @@ public class OrderServiceApplication {
     }
 
     @Configuration
-    @RequiredArgsConstructor
     public class DataInitializer {
 
-        private final OrderRepository orderRepository;
-
         @Bean
-        CommandLineRunner initOrders() {
+        CommandLineRunner initOrders(OrderRepository orderRepository) {
             return args -> {
 
-                Order order1 = Order.builder()
-                        .orderDate(LocalDateTime.now().minusDays(1))
-                        .status("CREATED")
-                        .items(List.of(
-                                OrderItem.builder()
-                                        .productId(1L)
-                                        .quantity(2)
-                                        .price(50.00)
-                                        .build(),
-                                OrderItem.builder()
-                                        .productId(2L)
-                                        .quantity(1)
-                                        .price(20.50)
-                                        .build()
-                        ))
-                        .totalAmount(120.50)
-                        .build();
+                for (int i = 1; i <= 10; i++) {
+                    Order order = Order.builder()
+                            .orderDate(LocalDateTime.now())
+                            .status("CREATED")
+                            .username("client" + (i % 3 + 1)) // client1, client2, client3
+                            .items(List.of(
+                                    OrderItem.builder()
+                                            .productId((long) i)
+                                            .quantity(1 + i % 3)
+                                            .price(10.0 + i)
+                                            .build(),
+                                    OrderItem.builder()
+                                            .productId((long) (i + 10))
+                                            .quantity(2)
+                                            .price(5.0 + i)
+                                            .build()
+                            ))
+                            .totalAmount(0.0) // sera recalculé juste après
+                            .build();
 
-                Order order2 = Order.builder()
-                        .orderDate(LocalDateTime.now())
-                        .status("PAID")
-                        .items(List.of(
-                                OrderItem.builder()
-                                        .productId(3L)
-                                        .quantity(3)
-                                        .price(25.00)
-                                        .build()
-                        ))
-                        .totalAmount(75.00)
-                        .build();
+                    // Calcul du total
+                    double total = order.getItems().stream()
+                            .mapToDouble(item -> item.getPrice() * item.getQuantity())
+                            .sum();
+                    order.setTotalAmount(total);
 
-                orderRepository.saveAll(List.of(order1, order2));
+                    orderRepository.save(order);
+                }
+
+                System.out.println("10 commandes de test créées !");
             };
         }
     }
-
 
 }

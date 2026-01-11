@@ -1,10 +1,7 @@
 package org.example.orderservice.entities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(name = "orders") // <--- évite le mot réservé "order"
 public class Order {
 
     @Id
@@ -21,16 +19,11 @@ public class Order {
     private Long id;
 
     private LocalDateTime orderDate;
-
     private String status;
-
     private double totalAmount;
 
-    @ElementCollection
-    @CollectionTable(
-            name = "order_items",
-            joinColumns = @JoinColumn(name = "order_id")
-    )
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<OrderItem> items;
-}
 
+    private String username; // <-- le champ nécessaire pour filtrer par utilisateur
+}
