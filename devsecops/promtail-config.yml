@@ -1,0 +1,51 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+
+    relabel_configs:
+      # Label job explicite (utilisable dans Grafana)
+      - target_label: job
+        replacement: docker
+
+      # Nom du conteneur
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+
+      # Stream stdout / stderr
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+
+      # Nom de l'image (utile en prod)
+      - source_labels: ['__meta_docker_container_image']
+        target_label: image
+
+      # Nom du service docker-compose (si présent)
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+
+      # Nom du projet docker-compose
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: project
+
+    pipeline_stages:
+      # Décodage des logs Docker (JSON)
+      - docker: {}
+
+      # Normalisation du timestamp
+      - timestamp:
+          source: time
+          format: RFC3339Nano

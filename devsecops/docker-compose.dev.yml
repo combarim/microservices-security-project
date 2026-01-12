@@ -5,72 +5,69 @@ services:
     image: postgres:16-alpine
     container_name: postgres_order_db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB_ORDER}
-      POSTGRES_USER: ${POSTGRES_USER_ORDER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_ORDER}
+      POSTGRES_DB: ${POSTGRES_DB_ORDER:-order_db}
+      POSTGRES_USER: ${POSTGRES_USER_ORDER:-order_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_ORDER:-order_password}
     volumes:
       - postgres_order_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_ORDER} -d ${POSTGRES_DB_ORDER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_ORDER:-order_user} -d ${POSTGRES_DB_ORDER:-order_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - microservices-net
-    restart: unless-stopped
 
   product_db:
     image: postgres:16-alpine
     container_name: postgres_product_db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB_PRODUCT}
-      POSTGRES_USER: ${POSTGRES_USER_PRODUCT}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT}
+      POSTGRES_DB: ${POSTGRES_DB_PRODUCT:-product_db}
+      POSTGRES_USER: ${POSTGRES_USER_PRODUCT:-product_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT:-product_password}
     volumes:
       - postgres_product_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PRODUCT} -d ${POSTGRES_DB_PRODUCT}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PRODUCT:-product_user} -d ${POSTGRES_DB_PRODUCT:-product_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - microservices-net
-    restart: unless-stopped
 
   keycloak_db:
     image: postgres:16-alpine
     container_name: postgres_keycloak_db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB_KEYCLOAK}
-      POSTGRES_USER: ${POSTGRES_USER_KEYCLOAK}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK}
+      POSTGRES_DB: ${POSTGRES_DB_KEYCLOAK:-keycloak_db}
+      POSTGRES_USER: ${POSTGRES_USER_KEYCLOAK:-keycloak_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK:-keycloak_password}
     volumes:
       - postgres_keycloak_data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_KEYCLOAK} -d ${POSTGRES_DB_KEYCLOAK}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_KEYCLOAK:-keycloak_user} -d ${POSTGRES_DB_KEYCLOAK:-keycloak_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - microservices-net
-    restart: unless-stopped
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD:-admin}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${POSTGRES_DB_KEYCLOAK}
-      KC_DB_USERNAME: ${POSTGRES_USER_KEYCLOAK}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK}
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${POSTGRES_DB_KEYCLOAK:-keycloak_db}
+      KC_DB_USERNAME: ${POSTGRES_USER_KEYCLOAK:-keycloak_user}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK:-keycloak_password}
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 8081
       KC_HOSTNAME_STRICT: "false"
@@ -86,7 +83,6 @@ services:
         condition: service_healthy
     networks:
       - microservices-net
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
       interval: 10s
@@ -95,14 +91,17 @@ services:
       start_period: 90s
 
   gateway:
-    image: ${DOCKER_HUB_USERNAME}/microservices-gateway:${IMAGE_TAG:-latest}
+    build:
+      context: ../backend/gateway
+      dockerfile: Dockerfile
+    image: microservices-gateway:dev
     container_name: api-gateway
     environment:
       SERVER_PORT: 8888
       PRODUCT_SERVICE_URL: http://product-service:8082
       ORDER_SERVICE_URL: http://order-service:8083
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM:-microservices-realm}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}/protocol/openid-connect/certs
     ports:
       - "8888:8888"
     logging:
@@ -114,7 +113,6 @@ services:
         condition: service_healthy
     networks:
       - microservices-net
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8888/actuator/health"]
       interval: 30s
@@ -123,16 +121,19 @@ services:
       start_period: 60s
 
   product-service:
-    image: ${DOCKER_HUB_USERNAME}/microservices-product-service:${IMAGE_TAG:-latest}
+    build:
+      context: ../backend/product-service
+      dockerfile: Dockerfile
+    image: microservices-product-service:dev
     container_name: product-service
     environment:
       SERVER_PORT: 8082
-      SPRING_DATASOURCE_URL: jdbc:postgresql://product_db:5432/${POSTGRES_DB_PRODUCT}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_PRODUCT}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://product_db:5432/${POSTGRES_DB_PRODUCT:-product_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_PRODUCT:-product_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT:-product_password}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM:-microservices-realm}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}/protocol/openid-connect/certs
     ports:
       - "8082:8082"
     logging:
@@ -146,7 +147,6 @@ services:
         condition: service_healthy
     networks:
       - microservices-net
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8082/actuator/health"]
       interval: 30s
@@ -155,17 +155,20 @@ services:
       start_period: 60s
 
   order-service:
-    image: ${DOCKER_HUB_USERNAME}/microservices-order-service:${IMAGE_TAG:-latest}
+    build:
+      context: ../backend/order-service
+      dockerfile: Dockerfile
+    image: microservices-order-service:dev
     container_name: order-service
     environment:
       SERVER_PORT: 8083
-      SPRING_DATASOURCE_URL: jdbc:postgresql://order_db:5432/${POSTGRES_DB_ORDER}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_ORDER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_ORDER}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order_db:5432/${POSTGRES_DB_ORDER:-order_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_ORDER:-order_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_ORDER:-order_password}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       PRODUCT_SERVICE_URL: http://product-service:8082
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/${KEYCLOAK_REALM:-microservices-realm}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}/protocol/openid-connect/certs
     ports:
       - "8083:8083"
     logging:
@@ -181,7 +184,6 @@ services:
         condition: service_healthy
     networks:
       - microservices-net
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8083/actuator/health"]
       interval: 30s
@@ -190,7 +192,13 @@ services:
       start_period: 60s
 
   frontend:
-    image: ${DOCKER_HUB_USERNAME}/microservices-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8888
+        VITE_KEYCLOAK_URL: http://localhost:8081
+    image: microservices-frontend:dev
     container_name: frontend
     ports:
       - "3000:3000"
@@ -203,7 +211,6 @@ services:
         condition: service_healthy
     networks:
       - microservices-net
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
       interval: 30s
@@ -268,6 +275,7 @@ services:
     networks:
       - microservices-net
     restart: unless-stopped
+
 
 networks:
   microservices-net:
