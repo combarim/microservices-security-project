@@ -23,7 +23,7 @@ target/
 Thumbs.db
 
 # Environment files
-.env
+*.env
 
 # Other
 *.swp

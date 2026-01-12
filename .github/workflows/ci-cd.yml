@@ -1,0 +1,371 @@
+name: CI/CD Pipeline with Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  JAVA_VERSION: '21'
+  NODE_VERSION: '20'
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+
+jobs:
+  # ============================================
+  # Backend - Build & Test
+  # ============================================
+  backend-build:
+    name: Backend - Build & Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [gateway, product-service, order-service]
+
+    defaults:
+      run:
+        working-directory: backend/${{ matrix.service }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: ./mvnw clean package -DskipTests -B
+
+      - name: Run Tests
+        run: ./mvnw test -B
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-jar
+          path: backend/${{ matrix.service }}/target/*.jar
+          retention-days: 1
+
+  # ============================================
+  # Frontend - Build & Test
+  # ============================================
+  frontend-build:
+    name: Frontend - Build & Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run Tests
+        run: npm run test --if-present
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  # ============================================
+  # Security - OWASP Dependency Check
+  # ============================================
+  owasp-dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    needs: [backend-build]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: OWASP Dependency Check - Gateway
+        uses: dependency-check/Dependency-Check_Action@1.1.0
+        with:
+          project: 'gateway'
+          path: 'backend/gateway'
+          format: 'HTML'
+          out: 'reports/gateway'
+
+      - name: OWASP Dependency Check - Product Service
+        uses: dependency-check/Dependency-Check_Action@1.1.0
+        with:
+          project: 'product-service'
+          path: 'backend/product-service'
+          format: 'HTML'
+          out: 'reports/product-service'
+
+      - name: OWASP Dependency Check - Order Service
+        uses: dependency-check/Dependency-Check_Action@1.1.0
+        with:
+          project: 'order-service'
+          path: 'backend/order-service'
+          format: 'HTML'
+          out: 'reports/order-service'
+
+      - name: Upload OWASP reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-reports
+          path: reports/
+          retention-days: 7
+
+  # ============================================
+  # Security - Code Analysis with CodeQL
+  # ============================================
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build]
+
+    strategy:
+      matrix:
+        language: ['java', 'javascript']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Set up JDK for Java analysis
+        if: matrix.language == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Java backend
+        if: matrix.language == 'java'
+        run: |
+          ./mvnw clean package -DskipTests -B -f backend/gateway/pom.xml
+          ./mvnw clean package -DskipTests -B -f backend/product-service/pom.xml
+          ./mvnw clean package -DskipTests -B -f backend/order-service/pom.xml
+
+      - name: Set up Node.js for JavaScript analysis
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        if: matrix.language == 'javascript'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  # ============================================
+  # Security - Dockerfile Analysis
+  # ============================================
+  dockerfile-scan:
+    name: Hadolint - Dockerfile Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan Gateway Dockerfile
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: backend/gateway/Dockerfile
+          ignore: DL3008,DL3009
+
+      - name: Scan Product Service Dockerfile
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: backend/product-service/Dockerfile
+          ignore: DL3008,DL3009
+
+      - name: Scan Order Service Dockerfile
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: backend/order-service/Dockerfile
+          ignore: DL3008,DL3009
+
+      - name: Scan Frontend Dockerfile
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: frontend/Dockerfile
+          ignore: DL3008,DL3009
+
+  # ============================================
+  # Docker - Build Images
+  # ============================================
+  docker-build:
+    name: Docker Build & Scan
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build, owasp-dependency-check, codeql, dockerfile-scan]
+
+    strategy:
+      matrix:
+        include:
+          - service: gateway
+            context: backend/gateway
+            port: 8888
+          - service: product-service
+            context: backend/product-service
+            port: 8082
+          - service: order-service
+            context: backend/order-service
+            port: 8083
+          - service: frontend
+            context: frontend
+            port: 3000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_HUB_USERNAME }}/microservices-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: ${{ env.DOCKER_HUB_USERNAME }}/microservices-${{ matrix.service }}:scan
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:8888' }}
+            VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://localhost:8081' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.DOCKER_HUB_USERNAME }}/microservices-${{ matrix.service }}:scan
+          format: 'sarif'
+          output: trivy-${{ matrix.service }}.sarif
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+      - name: Push Docker image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:8888' }}
+            VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://localhost:8081' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================
+  # Validation - Docker Compose & Integration
+  # ============================================
+  docker-compose-validation:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: |
+          docker-compose -f devsecops/docker-compose.yml config > /dev/null
+          echo "✓ Docker Compose configuration is valid"
+
+  # ============================================
+  # Final Summary
+  # ============================================
+  security-report:
+    name: Security & Build Report
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build, owasp-dependency-check, codeql, dockerfile-scan, docker-build]
+    if: always()
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 🔒 DevSecOps Pipeline Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Build Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: Compiled and tested" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: Compiled and linted" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Images: Built and scanned" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Security Scans" >> $GITHUB_STEP_SUMMARY
+          echo "- **CodeQL**: Code analysis for Java and JavaScript" >> $GITHUB_STEP_SUMMARY
+          echo "- **Hadolint**: Dockerfile best practices validation" >> $GITHUB_STEP_SUMMARY
+          echo "- **OWASP Dependency Check**: Maven dependencies analyzed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trivy**: Container images scanned for vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 View Results" >> $GITHUB_STEP_SUMMARY
+          echo "- CodeQL: Check GitHub Security > Code scanning" >> $GITHUB_STEP_SUMMARY
+          echo "- Trivy: Check GitHub Security > Dependabot" >> $GITHUB_STEP_SUMMARY

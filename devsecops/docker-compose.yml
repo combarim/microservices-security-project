@@ -1,8 +1,13 @@
 version: '3.8'
 
 services:
+  # ============================================
+  # Databases
+  # NOTE: Database ports are exposed for development only.
+  # In production, remove the 'ports' sections to prevent external access.
+  # ============================================
   order_bd:
-    image: postgres:latest
+    image: postgres:16-alpine
     container_name: postgres_order_bd
     environment:
       POSTGRES_DB: ${POSTGRES_DB_ORDER}
@@ -12,9 +17,22 @@ services:
       - postgres_order_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_ORDER} -d ${POSTGRES_DB_ORDER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   product_bd:
-    image: postgres:latest
+    image: postgres:16-alpine
     container_name: postgres_product_bd
     environment:
       POSTGRES_DB: ${POSTGRES_DB_PRODUCT}
@@ -24,23 +42,212 @@ services:
       - postgres_product_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PRODUCT} -d ${POSTGRES_DB_PRODUCT}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  keycloak_bd:
+    image: postgres:16-alpine
+    container_name: postgres_keycloak_bd
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_KEYCLOAK}
+      POSTGRES_USER: ${POSTGRES_USER_KEYCLOAK}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK}
+    volumes:
+      - postgres_keycloak_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_KEYCLOAK} -d ${POSTGRES_DB_KEYCLOAK}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Identity & Access Management
+  # ============================================
   keycloak:
-    image: jboss/keycloak:latest
+    image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
     environment:
-      DB_VENDOR: POSTGRES
-      DB_ADDR: postgres_order_bd
-      DB_DATABASE: order_bd
-      DB_USER: order_user
-      DB_PASSWORD: order_password
-      KEYCLOAK_USER: ${KEYCLOAK_USER}
-      KEYCLOAK_PASSWORD: ${KEYCLOAK_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres_keycloak_bd:5432/${POSTGRES_DB_KEYCLOAK}
+      KC_DB_USERNAME: ${POSTGRES_USER_KEYCLOAK}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK}
+    # WARNING: start-dev is for development only. Use 'start' with HTTPS in production
+    command: start-dev
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
-      - postgres_order_bd
+      keycloak_bd:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # API Gateway
+  # ============================================
+  gateway:
+    image: ${DOCKER_HUB_USERNAME}/microservices-gateway:${IMAGE_TAG:-latest}
+    container_name: api-gateway
+    environment:
+      SERVER_PORT: 8888
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
+    ports:
+      - "8888:8888"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Product Microservice
+  # ============================================
+  product-service:
+    image: ${DOCKER_HUB_USERNAME}/microservices-product-service:${IMAGE_TAG:-latest}
+    container_name: product-service
+    environment:
+      SERVER_PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:postgresql://product_bd:5432/${POSTGRES_DB_PRODUCT}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_PRODUCT}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
+    ports:
+      - "8082:8082"
+    depends_on:
+      product_bd:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Order Microservice
+  # ============================================
+  order-service:
+    image: ${DOCKER_HUB_USERNAME}/microservices-order-service:${IMAGE_TAG:-latest}
+    container_name: order-service
+    environment:
+      SERVER_PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order_bd:5432/${POSTGRES_DB_ORDER}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_ORDER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_ORDER}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      PRODUCT_SERVICE_URL: http://product-service:8082
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
+    ports:
+      - "8083:8083"
+    depends_on:
+      order_bd:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Frontend React
+  # ============================================
+  frontend:
+    image: ${DOCKER_HUB_USERNAME}/microservices-frontend:${IMAGE_TAG:-latest}
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  microservices-net:
+    driver: bridge
 
 volumes:
   postgres_order_data:
   postgres_product_data:
+  postgres_keycloak_data:

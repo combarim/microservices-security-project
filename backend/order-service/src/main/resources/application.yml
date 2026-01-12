@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: order-service
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/order_bd}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USER:order_user}
+    password: ${DATABASE_PASSWORD:order_password}
+
+  jpa:
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+    show-sql: ${HIBERNATE_SHOW_SQL:false}
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/microservices-realm}
+
+# External Services
+external:
+  product-service-url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
