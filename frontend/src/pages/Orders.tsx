@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '../context/ToastContext';
 import { orderApi } from '../services/api';
 import type { Order } from '../types';
@@ -11,19 +11,20 @@ export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchOrders = useCallback(async () => {
+    try {
+      const data = await orderApi.getAll();
+      setOrders(data);
+    } catch {
+      showError('Erreur lors du chargement des commandes');
+    } finally {
+      setLoading(false);
+    }
+  }, [showError]);
+
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const data = await orderApi.getAll();
-        setOrders(data);
-      } catch {
-        showError('Erreur lors du chargement des commandes');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {

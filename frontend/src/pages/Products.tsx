@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { productApi, orderApi } from '../services/api';
@@ -30,7 +30,7 @@ export default function Products() {
   });
   const [orderQuantity, setOrderQuantity] = useState(1);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const data = await productApi.getAll();
       setProducts(data);
@@ -39,11 +39,11 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showError]);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
   const handleAddProduct = async () => {
     try {
