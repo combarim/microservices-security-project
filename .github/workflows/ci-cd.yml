@@ -112,41 +112,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
       - name: Create reports directory
         run: mkdir -p reports
 
       - name: OWASP Dependency Check - Gateway
-        uses: dependency-check/Dependency-Check_Action@1.1.0
-        env:
-          JAVA_HOME: ''
-        with:
-          project: 'gateway'
-          path: 'backend/gateway'
-          format: 'HTML'
-          args: '--out reports'
+        working-directory: backend/gateway
+        run: |
+          chmod +x ./mvnw
+          ./mvnw org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=11 -Dformats=HTML -DoutputDirectory=../../reports/gateway -B
 
       - name: OWASP Dependency Check - Product Service
-        uses: dependency-check/Dependency-Check_Action@1.1.0
-        env:
-          JAVA_HOME: ''
-        with:
-          project: 'product-service'
-          path: 'backend/product-service'
-          format: 'HTML'
-          args: '--out reports'
+        working-directory: backend/product-service
+        run: |
+          chmod +x ./mvnw
+          ./mvnw org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=11 -Dformats=HTML -DoutputDirectory=../../reports/product-service -B
 
       - name: OWASP Dependency Check - Order Service
-        uses: dependency-check/Dependency-Check_Action@1.1.0
-        env:
-          JAVA_HOME: ''
-        with:
-          project: 'order-service'
-          path: 'backend/order-service'
-          format: 'HTML'
-          args: '--out reports'
+        working-directory: backend/order-service
+        run: |
+          chmod +x ./mvnw
+          ./mvnw org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=11 -Dformats=HTML -DoutputDirectory=../../reports/order-service -B
 
       - name: Upload OWASP reports
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: owasp-reports
           path: reports/
