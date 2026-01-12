@@ -11,6 +11,7 @@ Ce projet est une application basee sur une architecture microservices, concue a
    - [Diagramme d'architecture](#diagramme-darchitecture)
    - [Flux d'authentification](#flux-dauthentification)
    - [Communication entre services](#communication-entre-services)
+   - [Diagramme de sequence - Processus de commande](#diagramme-de-sequence---processus-de-commande)
 3. [Composants du Projet](#composants-du-projet)
    - [Backend (Java/Spring Boot)](#1-backend)
    - [Frontend (React/TypeScript)](#2-frontend)
@@ -147,6 +148,27 @@ GitHub Actions:
 | Order Service | Product Service | HTTP (WebClient) | Verification des produits lors des commandes |
 | Tous les services | Keycloak | HTTP | Validation des tokens JWT |
 | Tous les conteneurs | Loki | HTTP | Envoi des logs via Promtail |
+
+### Diagramme de sequence - Processus de commande
+
+Le diagramme ci-dessous illustre le flux complet d'une commande, mettant en evidence la securite de bout-en-bout avec JWT :
+
+![Diagramme de sequence du processus de commande](docs/diagramme_sequence_process_command.jpg)
+
+**Etapes du processus :**
+
+| Etape | Description | Securite |
+|-------|-------------|----------|
+| 1. Authentification | L'utilisateur s'authentifie aupres de Keycloak (POST /auth) | Credentials valides, emission du JWT |
+| 2. Creation Commande | Requete POST /orders avec le JWT vers l'API Gateway | Validation JWT + verification role CLIENT |
+| 3. Verification Produits | Order Service interroge Product Service pour verifier le stock | Propagation du JWT entre services |
+| 4. Persistance | Sauvegarde de la commande en base et retour 201 Created | Integrite des donnees |
+
+**Points de securite illustres :**
+- Double validation du JWT (Gateway + Service)
+- Verification des roles a chaque niveau (RBAC)
+- Propagation securisee du token entre microservices
+- Gestion des erreurs (401 Unauthorized, 403 Forbidden, 409 Conflict)
 
 ---
 
