@@ -24,6 +24,24 @@ L'application frontend offre les fonctionnalités suivantes :
 - **Interface Utilisateur Réactive**: Une interface moderne et réactive, stylisée avec Tailwind CSS.
 - **Notifications**: Système de notifications (toasts) pour informer l'utilisateur des actions réussies ou des erreurs.
 
+## Captures d'écran
+
+### Page des Produits (Vue Client)
+![Page des Produits - Client](../docs/frontend_client_products_page.png)
+
+### Page des Commandes (Vue Client)
+![Page des Commandes - Client](../docs/frontend_client_commands_page.png)
+
+### Page de Profil
+![Page de Profil](../docs/frontend_profile_page.png)
+
+### Page de Gestion des Produits (Vue Administrateur)
+![Page des Produits - Admin](../docs/frontend_admin_products_page.png)
+
+### Page de Gestion des Commandes (Vue Administrateur)
+![Page des Commandes - Admin](../docs/frontend_admin_commands_page.png)
+
+
 ## Structure du Projet
 
 ```

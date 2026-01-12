@@ -2,6 +2,12 @@
 
 Ce projet est une application basée sur une architecture microservices, conçue avec une approche DevSecOps, mettant l'accent sur la sécurité, l'observabilité et une expérience utilisateur moderne.
 
+## Aperçu
+
+| Tableau de bord Grafana | Workflow CI/CD | Page des produits |
+| :---: | :---: | :---: |
+| ![Tableau de bord Grafana](docs/grafana_dashboard_with_4_viz_frontend_backend_orderservice_productservice.png) | ![Workflow CI/CD](docs/cicd_workflow_succedeed_in_github_actions.png) | ![Page des Produits](docs/frontend_client_products_page.png) |
+
 ## Vue d'ensemble de l'Architecture
 
 Le projet se compose de trois couches principales :
@@ -60,6 +66,9 @@ Pour démarrer le projet localement, assurez-vous d'avoir Docker et Docker Compo
     cd devsecops
     docker-compose -f docker-compose.dev.yml up --build -d
     ```
+    Une fois les conteneurs démarrés, vous devriez voir un résultat similaire à celui-ci avec `docker ps`:
+    ![Résultat de la commande docker ps](docs/docker_ps_command_result.png)
+
 3.  **Lancer le Backend**:
     Pour chaque microservice dans `backend/`, vous pouvez le construire et le démarrer:
     ```bash

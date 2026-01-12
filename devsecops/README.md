@@ -21,6 +21,8 @@ Ce répertoire regroupe les configurations et les outils pour l'orchestration, l
     - `promtail-config.yml`: Fichier de configuration de Promtail.
   - `LOGGING_SETUP.md`: Documentation détaillée sur la mise en place et l'utilisation du système de logging.
 
+  ![Tableau de bord Grafana](../docs/grafana_dashboard_with_4_viz_frontend_backend_orderservice_productservice.png)
+
 ## Intégration CI/CD
 
 Le projet utilise GitHub Actions pour automatiser le pipeline CI/CD, défini dans le fichier `.github/workflows/ci-cd.yml`. Ce pipeline est exécuté sur chaque `push` sur les branches `main` et `develop`, ainsi que sur chaque `pull_request` vers `main`.
@@ -59,6 +61,8 @@ Les étapes clés du pipeline sont les suivantes :
     -   Un résumé des résultats des différentes étapes de sécurité et de build est généré et affiché dans le résumé de l'exécution GitHub Actions.
 
 Ce pipeline assure que toute modification de code subit une série rigoureuse de vérifications de qualité et de sécurité avant d'être potentiellement déployée.
+
+![Workflow CI/CD GitHub Actions](../docs/cicd_workflow_succedeed_in_github_actions.png)
 
 ## Structure du Répertoire
 
