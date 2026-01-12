@@ -28,9 +28,8 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine
 
-# Installer curl pour les healthchecks et supprimer la config par défaut
-RUN apk add --no-cache curl && \
-    rm -rf /usr/share/nginx/html/*
+# Supprimer la config par défaut
+RUN rm -rf /usr/share/nginx/html/*
 
 # Copier les fichiers buildés
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -52,9 +51,9 @@ USER appuser
 # Port exposé
 EXPOSE 3000
 
-# Health check
+# Health check (utilise wget busybox inclus dans Alpine)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD wget -q -O /dev/null http://localhost:3000/health || exit 1
 
 # Démarrage de nginx
 CMD ["nginx", "-g", "daemon off;"]

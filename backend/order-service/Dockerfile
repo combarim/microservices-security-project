@@ -26,9 +26,8 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Installer curl pour les healthchecks et créer un utilisateur non-root
-RUN apk add --no-cache curl && \
-    addgroup -g 1001 appgroup && \
+# Créer un utilisateur non-root pour la sécurité
+RUN addgroup -g 1001 appgroup && \
     adduser -u 1001 -G appgroup -D appuser
 
 # Copier les layers extraits (optimise le cache Docker)
@@ -45,9 +44,9 @@ USER appuser
 # Port exposé
 EXPOSE 8083
 
-# Health check
+# Health check (utilise wget busybox inclus dans Alpine)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8083/actuator/health || exit 1
+    CMD wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1
 
 # Démarrage de l'application
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
