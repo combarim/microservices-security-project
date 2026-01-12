@@ -28,8 +28,9 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine
 
-# Supprimer la config par défaut
-RUN rm -rf /usr/share/nginx/html/*
+# Installer curl pour les healthchecks et supprimer la config par défaut
+RUN apk add --no-cache curl && \
+    rm -rf /usr/share/nginx/html/*
 
 # Copier les fichiers buildés
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -53,7 +54,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget -q --spider http://localhost:3000 || exit 1
+    CMD curl -f http://localhost:3000/health || exit 1
 
 # Démarrage de nginx
 CMD ["nginx", "-g", "daemon off;"]
