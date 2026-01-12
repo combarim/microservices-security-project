@@ -359,7 +359,7 @@ jobs:
 
       - name: Validate docker-compose.yml
         run: |
-          docker-compose -f devsecops/docker-compose.yml config > /dev/null
+          docker compose -f devsecops/docker-compose.yml config > /dev/null
           echo "✓ Docker Compose configuration is valid"
 
   # ============================================

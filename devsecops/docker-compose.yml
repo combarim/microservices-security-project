@@ -91,11 +91,13 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres_keycloak_bd:5432/${POSTGRES_DB_KEYCLOAK}
+      KC_DB_URL: jdbc:postgresql://keycloak_bd:5432/${POSTGRES_DB_KEYCLOAK}
       KC_DB_USERNAME: ${POSTGRES_USER_KEYCLOAK}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK}
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     # WARNING: start-dev is for development only. Use 'start' with HTTPS in production
-    command: start-dev
+    command: start-dev --import-realm
     ports:
       - "8081:8080"
     depends_on:
@@ -104,6 +106,12 @@ services:
     networks:
       - microservices-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     logging:
       driver: "json-file"
       options:
@@ -118,14 +126,16 @@ services:
     container_name: api-gateway
     environment:
       SERVER_PORT: 8888
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      PRODUCT_SERVICE_URL: http://product-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}
       LOGGING_LEVEL_ROOT: INFO
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
     ports:
       - "8888:8888"
     depends_on:
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices-net
     restart: unless-stopped
@@ -153,7 +163,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER_PRODUCT}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_PRODUCT}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}
       LOGGING_LEVEL_ROOT: INFO
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
     ports:
@@ -162,7 +172,7 @@ services:
       product_bd:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices-net
     restart: unless-stopped
@@ -191,7 +201,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD_ORDER}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       PRODUCT_SERVICE_URL: http://product-service:8082
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices_realm}
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM:-microservices-realm}
       LOGGING_LEVEL_ROOT: INFO
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
     ports:
@@ -200,9 +210,9 @@ services:
       order_bd:
         condition: service_healthy
       product-service:
-        condition: service_started
+        condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices-net
     restart: unless-stopped
