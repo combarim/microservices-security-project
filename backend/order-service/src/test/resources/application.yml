@@ -2,6 +2,8 @@ server:
   port: 8083
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   application:
     name: order-service
 
@@ -21,11 +23,12 @@ spring:
     console:
       enabled: true
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://localhost:8081/realms/microservices-realm
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+
+external:
+  product-service-url: http://localhost:8082
 
 management:
   endpoints:

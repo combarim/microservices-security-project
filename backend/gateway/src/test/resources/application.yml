@@ -1,0 +1,35 @@
+server:
+  port: 8888
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: gateway
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.reactive.ReactiveOAuth2ResourceServerAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
+
+  cloud:
+    gateway:
+      routes:
+        - id: product-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/products/**
+
+        - id: order-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/orders/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always

@@ -15,11 +15,9 @@ RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 # Copier le code source
 COPY src/ src/
 
-# Build de l'application
-RUN ./mvnw package -DskipTests -B
-
-# Extraire les layers Spring Boot pour optimisation
-RUN java -Djarmode=layertools -jar target/*.jar extract
+# Build de l'application et extraction des layers Spring Boot
+RUN ./mvnw package -DskipTests -B && \
+    java -Djarmode=layertools -jar target/*.jar extract
 
 # ============================================
 # Stage 2: Runtime
