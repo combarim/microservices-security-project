@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   JAVA_VERSION: '21'
   NODE_VERSION: '20'
@@ -107,36 +112,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'maven'
+      - name: Create reports directory
+        run: mkdir -p reports
 
       - name: OWASP Dependency Check - Gateway
         uses: dependency-check/Dependency-Check_Action@1.1.0
+        env:
+          JAVA_HOME: ''
         with:
           project: 'gateway'
           path: 'backend/gateway'
           format: 'HTML'
-          out: 'reports/gateway'
+          args: '--out reports'
 
       - name: OWASP Dependency Check - Product Service
         uses: dependency-check/Dependency-Check_Action@1.1.0
+        env:
+          JAVA_HOME: ''
         with:
           project: 'product-service'
           path: 'backend/product-service'
           format: 'HTML'
-          out: 'reports/product-service'
+          args: '--out reports'
 
       - name: OWASP Dependency Check - Order Service
         uses: dependency-check/Dependency-Check_Action@1.1.0
+        env:
+          JAVA_HOME: ''
         with:
           project: 'order-service'
           path: 'backend/order-service'
           format: 'HTML'
-          out: 'reports/order-service'
+          args: '--out reports'
 
       - name: Upload OWASP reports
         uses: actions/upload-artifact@v4
